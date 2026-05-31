@@ -30,7 +30,7 @@
       flex-direction: column;
       align-items: center;
       padding: 16px 16px 24px;
-      overscroll-behavior: none;
+      overscroll-behavior-y: contain;
     }
 
     /* ── Header ── */
@@ -77,69 +77,49 @@
       max-width: 840px;
       position: relative;
     }
-
     .frame-wrapper::before,
     .frame-wrapper::after,
     .corner-br,
     .corner-tl {
       content: '';
       position: absolute;
-      width: 18px;
-      height: 18px;
+      width: 18px; height: 18px;
       z-index: 2;
       pointer-events: none;
     }
-    .frame-wrapper::before  { top: -1px;    left: -1px;    border-top: 2px solid var(--accent);  border-left:  2px solid var(--accent); }
-    .frame-wrapper::after   { top: -1px;    right: -1px;   border-top: 2px solid var(--accent);  border-right: 2px solid var(--accent); }
-    .corner-br              { bottom: -1px; right: -1px;   border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
-    .corner-tl              { bottom: -1px; left: -1px;    border-bottom: 2px solid var(--accent); border-left:  2px solid var(--accent); }
+    .frame-wrapper::before { top: -1px;    left: -1px;    border-top: 2px solid var(--accent);    border-left:   2px solid var(--accent); }
+    .frame-wrapper::after  { top: -1px;    right: -1px;   border-top: 2px solid var(--accent);    border-right:  2px solid var(--accent); }
+    .corner-br             { bottom: -1px; right: -1px;   border-bottom: 2px solid var(--accent); border-right:  2px solid var(--accent); }
+    .corner-tl             { bottom: -1px; left: -1px;    border-bottom: 2px solid var(--accent); border-left:   2px solid var(--accent); }
 
-    /* Vnější kontejner – výška se přizpůsobuje obsahu */
     .image-box {
       background: var(--surface);
       border: 1px solid var(--border);
       overflow: hidden;
       position: relative;
-      touch-action: none;
-      /* výška je řízena JS přes inline style */
+      touch-action: pan-y pinch-zoom;
     }
 
-    /* Canvas pro kreslení obrázku */
-    #zoom-canvas {
-      display: block;
+    #gallery-image {
       width: 100%;
       height: auto;
-      touch-action: none;
+      display: block;
+      user-select: none;
+      -webkit-user-drag: none;
+      transition: opacity 0.25s ease;
     }
+    #gallery-image.loading { opacity: 0.35; }
 
-    /* scan-line overlay */
     .image-box::after {
       content: '';
       position: absolute;
       inset: 0;
       background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 3px,
-        rgba(0,0,0,0.07) 3px,
-        rgba(0,0,0,0.07) 4px
+        0deg, transparent, transparent 3px,
+        rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px
       );
       pointer-events: none;
     }
-
-    /* Loading spinner přes canvas */
-    #img-loading {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--surface);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s;
-    }
-    #img-loading.visible { opacity: 1; }
 
     /* ── Controls ── */
     .controls {
@@ -148,7 +128,6 @@
       gap: 10px;
       align-items: center;
     }
-
     button {
       background: var(--surface);
       color: var(--text);
@@ -162,26 +141,18 @@
       transition: all 0.18s ease;
       user-select: none;
     }
-    button:hover:not(:disabled) {
-      background: var(--accent);
-      color: #000;
-      border-color: var(--accent);
-    }
+    button:hover:not(:disabled) { background: var(--accent); color: #000; border-color: var(--accent); }
     button:disabled { opacity: 0.22; cursor: not-allowed; }
     #btn-actual { border-color: var(--accent2); color: var(--accent2); }
     #btn-actual:hover:not(:disabled) { background: var(--accent2); color: #000; }
 
     /* ── Loading overlay ── */
     #loading-overlay {
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      z-index: 100;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; z-index: 100;
       transition: opacity 0.4s ease;
     }
     #loading-overlay.hidden { opacity: 0; pointer-events: none; }
@@ -197,17 +168,11 @@
 
     /* ── Error ── */
     #error-box {
-      display: none;
-      width: 100%;
-      max-width: 840px;
-      margin-top: 12px;
-      padding: 12px 16px;
-      border: 1px solid #c0392b;
-      border-radius: 3px;
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      color: #e74c3c;
-      background: rgba(192,57,43,0.08);
+      display: none; width: 100%; max-width: 840px;
+      margin-top: 12px; padding: 12px 16px;
+      border: 1px solid #c0392b; border-radius: 3px;
+      font-family: var(--mono); font-size: 0.78rem;
+      color: #e74c3c; background: rgba(192,57,43,0.08);
     }
   </style>
 </head>
@@ -229,9 +194,8 @@
 <div class="frame-wrapper">
   <div class="corner-br"></div>
   <div class="corner-tl"></div>
-  <div class="image-box" id="image-box">
-    <canvas id="zoom-canvas"></canvas>
-    <div id="img-loading"><div class="spinner"></div></div>
+  <div class="image-box" id="touch-zone">
+    <img id="gallery-image" src="" alt="Snímek FVE">
   </div>
 </div>
 
@@ -250,87 +214,14 @@
   let archiv      = [];
   let aktualniIdx = -1;
 
-  const dateEl     = document.getElementById('date-display');
-  const btnPrev    = document.getElementById('btn-prev');
-  const btnNext    = document.getElementById('btn-next');
-  const btnActual  = document.getElementById('btn-actual');
-  const overlay    = document.getElementById('loading-overlay');
-  const errorBox   = document.getElementById('error-box');
-  const imageBox   = document.getElementById('image-box');
-  const canvas     = document.getElementById('zoom-canvas');
-  const ctx        = canvas.getContext('2d');
-  const imgLoading = document.getElementById('img-loading');
+  const imgEl     = document.getElementById('gallery-image');
+  const dateEl    = document.getElementById('date-display');
+  const btnPrev   = document.getElementById('btn-prev');
+  const btnNext   = document.getElementById('btn-next');
+  const btnActual = document.getElementById('btn-actual');
+  const overlay   = document.getElementById('loading-overlay');
+  const errorBox  = document.getElementById('error-box');
 
-  // ── Zoom stav ────────────────────────────────────────────────────
-  let img        = new Image();
-  let zoom       = 1;      // aktuální zoom (1 = fit)
-  let fitZoom    = 1;      // zoom pro "celý vidět"
-  let panX       = 0;
-  let panY       = 0;
-  let boxW       = 0;      // šířka image-box v px
-  let fitH       = 0;      // výška canvasu při fitZoom
-
-  function vypocitejFit() {
-    boxW    = imageBox.clientWidth;
-    if (!img.naturalWidth) return;
-    fitZoom = boxW / img.naturalWidth;
-    fitH    = Math.round(img.naturalHeight * fitZoom);
-  }
-
-  function resetNaFit() {
-    vypocitejFit();
-    zoom = fitZoom;
-    panX = 0;
-    panY = 0;
-    canvas.width  = boxW;
-    canvas.height = fitH;
-    canvas.style.height = fitH + 'px';
-    imageBox.style.height = fitH + 'px';
-    render();
-  }
-
-  function render() {
-    if (!img.naturalWidth) return;
-    const w = img.naturalWidth  * zoom;
-    const h = img.naturalHeight * zoom;
-
-    // Výška canvasu = zobrazená výška obrázku (rám se přizpůsobuje)
-    const displayH = Math.round(h);
-    if (canvas.height !== displayH || canvas.width !== boxW) {
-      canvas.width  = boxW;
-      canvas.height = displayH;
-      canvas.style.height  = displayH + 'px';
-      imageBox.style.height = displayH + 'px';
-    }
-
-    // Omez pan
-    panX = Math.min(0, Math.max(boxW - w, panX));
-    panY = Math.min(0, Math.max(displayH - h, panY));
-    // Při zoomu < fitZoom centruj
-    if (w <= boxW) panX = (boxW - w) / 2;
-    if (h <= displayH) panY = 0;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, panX, panY, w, h);
-  }
-
-  // ── Načtení obrázku ──────────────────────────────────────────────
-  function nactiObrazek(url) {
-    imgLoading.classList.add('visible');
-    const novy = new Image();
-    novy.crossOrigin = 'anonymous';
-    novy.onload = () => {
-      img = novy;
-      imgLoading.classList.remove('visible');
-      resetNaFit();
-    };
-    novy.onerror = () => imgLoading.classList.remove('visible');
-    novy.src = url;
-  }
-
-  window.addEventListener('resize', () => { if (img.naturalWidth) resetNaFit(); });
-
-  // ── Data ─────────────────────────────────────────────────────────
   async function inicializuj() {
     try {
       const res  = await fetch(APPS_SCRIPT_URL);
@@ -360,6 +251,13 @@
     dateEl.textContent = s.datumText.replace(/\. /g, '.');
     document.getElementById('header-status').textContent = `Archiv (${idx + 1}/${archiv.length})`;
     aktualizujTlacitka();
+  }
+
+  function nactiObrazek(url) {
+    imgEl.classList.add('loading');
+    imgEl.onload  = () => imgEl.classList.remove('loading');
+    imgEl.onerror = () => imgEl.classList.remove('loading');
+    imgEl.src = url;
   }
 
   function aktualizujTlacitka() {
@@ -395,91 +293,23 @@
     }
   });
 
-  // ── Touch: pinch zoom + pan + swipe ──────────────────────────────
-  let t1x=0, t1y=0;           // start prvního prstu (swipe)
-  let lastDist   = 0;
-  let midX0      = 0, midY0 = 0;  // střed prstů při startu pince
-  let zoomStart  = 1;
-  let panX0      = 0, panY0 = 0;
-  let lastTap    = 0;
-  let isPinch    = false;
+  // ── Swipe ────────────────────────────────────────────────────────
+  let tx = 0, ty = 0;
+  const tz = document.getElementById('touch-zone');
 
-  // pan při jednom prstu (jen při zoomu)
-  let panStartX  = 0, panStartY = 0;
-  let panStartPX = 0, panStartPY = 0;
+  tz.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    tx = e.touches[0].clientX;
+    ty = e.touches[0].clientY;
+  }, { passive: true });
 
-  function getDist(a, b) {
-    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-  }
-  function getMid(a, b) {
-    const r = canvas.getBoundingClientRect();
-    return {
-      x: (a.clientX + b.clientX) / 2 - r.left,
-      y: (a.clientY + b.clientY) / 2 - r.top
-    };
-  }
-
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    if (e.touches.length === 1) {
-      const t = e.touches[0];
-      t1x = t.clientX; t1y = t.clientY;
-      panStartX  = t.clientX; panStartY  = t.clientY;
-      panStartPX = panX;      panStartPY = panY;
-      isPinch = false;
-
-      // Dvojitý tap = reset na fit
-      const now = Date.now();
-      if (now - lastTap < 300) resetNaFit();
-      lastTap = now;
-
-    } else if (e.touches.length === 2) {
-      isPinch    = true;
-      lastDist   = getDist(e.touches[0], e.touches[1]);
-      const mid  = getMid(e.touches[0], e.touches[1]);
-      midX0 = mid.x; midY0 = mid.y;
-      zoomStart  = zoom;
-      panX0 = panX; panY0 = panY;
-    }
-  }, { passive: false });
-
-  canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    if (e.touches.length === 2 && isPinch) {
-      const dist    = getDist(e.touches[0], e.touches[1]);
-      const scale   = dist / lastDist;
-      const newZoom = Math.min(8, Math.max(fitZoom * 0.3, zoom * scale));
-
-      // Zoom kolem středu prstů
-      panX = midX0 - (midX0 - panX) * (newZoom / zoom);
-      panY = midY0 - (midY0 - panY) * (newZoom / zoom);
-      zoom = newZoom;
-      lastDist = dist;
-      render();
-
-    } else if (e.touches.length === 1 && !isPinch && zoom > fitZoom * 1.05) {
-      // Pan jedním prstem jen při přiblížení
-      panX = panStartPX + (e.touches[0].clientX - panStartX);
-      panY = panStartPY + (e.touches[0].clientY - panStartY);
-      render();
-    }
-  }, { passive: false });
-
-  canvas.addEventListener('touchend', e => {
-    if (isPinch && e.touches.length < 2) {
-      isPinch = false;
-      // Snap na fit pokud blízko
-      if (zoom < fitZoom * 1.1) resetNaFit();
-      return;
-    }
-    // Swipe jen při normálním zoomu
-    if (!isPinch && zoom <= fitZoom * 1.05 && e.changedTouches.length) {
-      const dx = t1x - e.changedTouches[0].clientX;
-      const dy = t1y - e.changedTouches[0].clientY;
-      if (Math.abs(dx) > 40 && Math.abs(dy) < 60) {
-        // vlevo (dx>0) = odhazuji doleva = přichází novější
-        if (dx > 0) stiskNovejsi(); else stiskStarsi();
-      }
+  tz.addEventListener('touchend', e => {
+    if (e.touches.length > 0 || !e.changedTouches.length) return;
+    const dx = tx - e.changedTouches[0].clientX;
+    const dy = ty - e.changedTouches[0].clientY;
+    if (Math.abs(dx) > 40 && Math.abs(dy) < 60) {
+      // táhnu vlevo (dx>0) = odhazuji doleva = přichází novější
+      if (dx > 0) stiskNovejsi(); else stiskStarsi();
     }
   }, { passive: true });
 
