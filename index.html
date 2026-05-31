@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>FVE Kladno</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap');
@@ -97,7 +97,7 @@
       border: 1px solid var(--border);
       overflow: hidden;
       position: relative;
-      touch-action: pan-y pinch-zoom;
+      touch-action: none;
     }
 
     #gallery-image {
@@ -309,7 +309,7 @@
     const dy = ty - e.changedTouches[0].clientY;
     if (Math.abs(dx) > 40 && Math.abs(dy) < 60) {
       // táhnu vlevo (dx>0) = odhazuji doleva = přichází novější
-      if (dx > 0) stiskNovejsi(); else stiskStarsi();
+      if (dx > 0) stiskStarsi(); else stiskNovejsi();
     }
   }, { passive: true });
 
