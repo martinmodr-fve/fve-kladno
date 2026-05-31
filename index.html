@@ -29,7 +29,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 32px 16px 48px;
+      padding: 16px 16px 24px;
       overscroll-behavior-y: contain;
     }
 
@@ -40,9 +40,9 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 28px;
+      margin-bottom: 8px;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 16px;
+      padding-bottom: 10px;
     }
     header h1 {
       font-family: var(--mono);
@@ -62,9 +62,7 @@
       font-weight: 600;
       white-space: nowrap;
     }
-    #header-right {
-      flex-shrink: 0;
-    }
+    #header-right { flex-shrink: 0; }
     #date-display {
       font-family: var(--mono);
       font-size: clamp(1rem, 2.5vw, 1.3rem);
@@ -102,8 +100,10 @@
       border: 1px solid var(--border);
       overflow: hidden;
       position: relative;
-      touch-action: pinch-zoom;
+      touch-action: none;
+      cursor: grab;
     }
+    .image-box:active { cursor: grabbing; }
 
     #gallery-image {
       width: 100%;
@@ -112,6 +112,8 @@
       user-select: none;
       -webkit-user-drag: none;
       transition: opacity 0.25s ease;
+      transform-origin: 0 0;
+      will-change: transform;
     }
     #gallery-image.loading { opacity: 0.35; }
 
@@ -130,20 +132,12 @@
       pointer-events: none;
     }
 
-    /* ── Status bar ── */
+    /* ── Status bar (skrytý) ── */
     .status-bar { display: none; }
-    .status-dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: var(--text-dim);
-      flex-shrink: 0;
-      transition: background 0.3s;
-    }
-    .status-dot.live { background: #4caf78; box-shadow: 0 0 6px #4caf78; }
 
     /* ── Controls ── */
     .controls {
-      margin-top: 22px;
+      margin-top: 8px;
       display: flex;
       gap: 10px;
       align-items: center;
@@ -226,7 +220,6 @@
 </head>
 <body>
 
-<!-- loading -->
 <div id="loading-overlay">
   <div class="spinner"></div>
   <p>načítání seznamu snímků…</p>
@@ -263,15 +256,11 @@
 <div id="error-box"></div>
 
 <script>
-  // ================================================================
-  // NASTAVENÍ – sem vlož URL svého Apps Scriptu po nasazení
-  // ================================================================
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz16YbahcvENiHVCVesvxhvuM_x0y8wsrLGo7O3EUdQCAvV-o303IJvq5yTqRy7LbNxQw/exec';
-  // ================================================================
 
   let aktualniId  = null;
-  let archiv      = [];   // [{ datumText, id }, …] nejnovější → nejstarší
-  let aktualniIdx = -1;   // -1 = aktualni.jpg
+  let archiv      = [];
+  let aktualniIdx = -1;
 
   const imgEl      = document.getElementById('gallery-image');
   const dateEl     = document.getElementById('date-display');
@@ -283,8 +272,9 @@
   const btnActual  = document.getElementById('btn-actual');
   const overlay    = document.getElementById('loading-overlay');
   const errorBox   = document.getElementById('error-box');
+  const touchZone  = document.getElementById('touch-zone');
 
-  // ── Načtení dat ze Apps Scriptu ──────────────────────────────────
+  // ── Načtení dat ──────────────────────────────────────────────────
   async function inicializuj() {
     try {
       const res  = await fetch(APPS_SCRIPT_URL);
@@ -292,7 +282,7 @@
       aktualniId = data.aktualniId;
       archiv     = data.archiv || [];
     } catch (e) {
-      zobrazChybu('Nepodařilo se načíst seznam snímků. Zkontroluj URL Apps Scriptu a jeho oprávnění.');
+      zobrazChybu('Nepodařilo se načíst seznam snímků.');
     }
     overlay.classList.add('hidden');
     zobrazAktualni();
@@ -300,30 +290,22 @@
 
   // ── Zobrazení snímků ─────────────────────────────────────────────
   function zobrazAktualni() {
-    if (!aktualniId) { zobrazChybu('ID aktuální.jpg nebylo nalezeno v Drive složce.'); return; }
+    if (!aktualniId) { zobrazChybu('ID aktuální.jpg nebylo nalezeno.'); return; }
     aktualniIdx = -1;
-    const ts    = Date.now();
-    nactiObrazek(`https://lh3.googleusercontent.com/d/${aktualniId}=w1920?t=${ts}`);
-    const dnes  = formatujDatum(new Date());
-    dateEl.textContent   = dnes;
-    const headerStatus = document.getElementById('header-status');
-    headerStatus.textContent = 'Aktuální snímek';
-    statusEl.textContent = 'Aktuální snímek';
-    statusDot.className  = 'status-dot live';
-    indexLabel.textContent = '';
+    resetZoom();
+    nactiObrazek(`https://lh3.googleusercontent.com/d/${aktualniId}=w1920?t=${Date.now()}`);
+    dateEl.textContent = formatujDatum(new Date());
+    document.getElementById('header-status').textContent = 'Aktuální snímek';
     aktualizujTlacitka();
   }
 
   function zobrazArchiv(idx) {
     aktualniIdx = idx;
+    resetZoom();
     const s = archiv[idx];
     nactiObrazek(`https://lh3.googleusercontent.com/d/${s.id}=w1920`);
-    // Reformat datumText "30. 05. 2026" -> "30.05.2026"
-    dateEl.textContent   = s.datumText.replace(/\. /g, '.');
-    const headerStatus = document.getElementById('header-status');
-    headerStatus.textContent = `Archiv (${idx + 1}/${archiv.length})`;
-    statusDot.className  = 'status-dot';
-    indexLabel.textContent = `${idx + 1} / ${archiv.length}`;
+    dateEl.textContent = s.datumText.replace(/\. /g, '.');
+    document.getElementById('header-status').textContent = `Archiv (${idx + 1}/${archiv.length})`;
     aktualizujTlacitka();
   }
 
@@ -361,24 +343,130 @@
 
   // ── Klávesnice ───────────────────────────────────────────────────
   document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft')                          stiskStarsi();
-    else if (e.key === 'ArrowRight')                    stiskNovejsi();
+    if (e.key === 'ArrowLeft')                             stiskStarsi();
+    else if (e.key === 'ArrowRight')                       stiskNovejsi();
     else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       if (!btnActual.disabled) zobrazAktualni();
     }
   });
 
-  // ── Dotykové ovládání ────────────────────────────────────────────
-  let tx = 0, ty = 0;
-  const tz = document.getElementById('touch-zone');
-  tz.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
-  tz.addEventListener('touchend',   e => {
-    if (!e.changedTouches.length) return;
-    const dx = tx - e.changedTouches[0].clientX;
-    const dy = ty - e.changedTouches[0].clientY;
-    if (Math.abs(dx) > 40 && Math.abs(dy) < 60) {
-      if (dx > 0) stiskStarsi(); else stiskNovejsi();
+  // ── Zoom + Swipe (vlastní touch handler) ─────────────────────────
+  let zoom    = 1;
+  let panX    = 0;
+  let panY    = 0;
+  const MIN_ZOOM = 0.3;
+  const MAX_ZOOM = 5;
+
+  // pro swipe
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+  let isSwipe     = false;
+
+  // pro pinch
+  let lastPinchDist = 0;
+  let pinchMidX     = 0;
+  let pinchMidY     = 0;
+  let isPinching    = false;
+
+  // pro pan (jeden prst při zoomu)
+  let lastPanX = 0;
+  let lastPanY = 0;
+  let isPanning = false;
+
+  function resetZoom() {
+    zoom = 1; panX = 0; panY = 0;
+    applyTransform();
+  }
+
+  function applyTransform() {
+    // Omez pan aby obrázek nevyjel mimo při zoomu < 1
+    const box = touchZone.getBoundingClientRect();
+    const iw  = box.width  * zoom;
+    const ih  = imgEl.naturalHeight ? box.width * zoom * imgEl.naturalHeight / imgEl.naturalWidth : box.height * zoom;
+
+    if (zoom <= 1) {
+      // při zoom <= 1 vycentruj
+      panX = (box.width  - iw) / 2;
+      panY = 0;
+    } else {
+      const maxPanX = 0;
+      const minPanX = box.width  - iw;
+      const minPanY = box.height - ih;
+      panX = Math.min(maxPanX, Math.max(minPanX, panX));
+      panY = Math.min(0,        Math.max(minPanY, panY));
     }
+
+    imgEl.style.transform       = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    imgEl.style.transformOrigin = '0 0';
+    imgEl.style.width           = '100%';
+  }
+
+  function getDist(t1, t2) {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  touchZone.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      swipeStartX = e.touches[0].clientX;
+      swipeStartY = e.touches[0].clientY;
+      lastPanX    = e.touches[0].clientX;
+      lastPanY    = e.touches[0].clientY;
+      isPinching  = false;
+      isSwipe     = zoom <= 1;
+      isPanning   = zoom > 1;
+    } else if (e.touches.length === 2) {
+      isPinching      = true;
+      isSwipe         = false;
+      isPanning       = false;
+      lastPinchDist   = getDist(e.touches[0], e.touches[1]);
+      pinchMidX       = (e.touches[0].clientX + e.touches[1].clientX) / 2 - touchZone.getBoundingClientRect().left;
+      pinchMidY       = (e.touches[0].clientY + e.touches[1].clientY) / 2 - touchZone.getBoundingClientRect().top;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  touchZone.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && isPinching) {
+      const dist      = getDist(e.touches[0], e.touches[1]);
+      const ratio     = dist / lastPinchDist;
+      const newZoom   = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * ratio));
+
+      // Zoom kolem středu pinche
+      panX = pinchMidX - (pinchMidX - panX) * (newZoom / zoom);
+      panY = pinchMidY - (pinchMidY - panY) * (newZoom / zoom);
+      zoom = newZoom;
+      lastPinchDist = dist;
+      applyTransform();
+    } else if (e.touches.length === 1 && isPanning) {
+      const dx = e.touches[0].clientX - lastPanX;
+      const dy = e.touches[0].clientY - lastPanY;
+      panX += dx;
+      panY += dy;
+      lastPanX = e.touches[0].clientX;
+      lastPanY = e.touches[0].clientY;
+      applyTransform();
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  touchZone.addEventListener('touchend', e => {
+    if (isPinching && e.touches.length < 2) {
+      isPinching = false;
+      // Pokud zoom skoro 1, snapni zpět na 1
+      if (zoom > 0.85 && zoom < 1.15) { zoom = 1; applyTransform(); }
+      return;
+    }
+    if (isSwipe && e.changedTouches.length) {
+      const dx = swipeStartX - e.changedTouches[0].clientX;
+      const dy = swipeStartY - e.changedTouches[0].clientY;
+      if (Math.abs(dx) > 40 && Math.abs(dy) < 60) {
+        // vlevo = starší, vpravo = novější
+        if (dx > 0) stiskStarsi(); else stiskNovejsi();
+      }
+    }
+    isPanning = false;
   }, { passive: true });
 
   // ── Pomocné ──────────────────────────────────────────────────────
@@ -391,7 +479,6 @@
     errorBox.textContent   = '⚠ ' + msg;
   }
 
-  // ── Start ────────────────────────────────────────────────────────
   inicializuj();
 </script>
 </body>
