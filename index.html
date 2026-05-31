@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FVE Kladno</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap');
+
+    :root {
+      --bg:        #0d0f12;
+      --surface:   #141720;
+      --border:    #1e2535;
+      --accent:    #f0a500;
+      --accent2:   #ff6b35;
+      --text:      #c8d0e0;
+      --text-dim:  #5a6480;
+      --mono:      'Share Tech Mono', monospace;
+      --sans:      'Exo 2', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+      overscroll-behavior-y: contain;
+    }
+
+    /* ── Header ── */
+    header {
+      width: 100%;
+      max-width: 840px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    header h1 {
+      font-family: var(--mono);
+      font-size: clamp(1.2rem, 3vw, 1.6rem);
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    header h1 span { color: var(--text-dim); }
+    #header-status {
+      flex: 1;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: clamp(1rem, 2.5vw, 1.3rem);
+      color: var(--accent);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    #header-right {
+      flex-shrink: 0;
+    }
+    #date-display {
+      font-family: var(--mono);
+      font-size: clamp(1rem, 2.5vw, 1.3rem);
+      color: var(--accent);
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    /* ── Image frame ── */
+    .frame-wrapper {
+      width: 100%;
+      max-width: 840px;
+      position: relative;
+    }
+
+    /* corner decoration */
+    .frame-wrapper::before,
+    .frame-wrapper::after,
+    .corner-br,
+    .corner-tl {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .frame-wrapper::before  { top: -1px;    left: -1px;    border-top: 2px solid var(--accent);  border-left:  2px solid var(--accent); }
+    .frame-wrapper::after   { top: -1px;    right: -1px;   border-top: 2px solid var(--accent);  border-right: 2px solid var(--accent); }
+    .corner-br              { bottom: -1px; right: -1px;   border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+    .corner-tl              { bottom: -1px; left: -1px;    border-bottom: 2px solid var(--accent); border-left:  2px solid var(--accent); }
+
+    .image-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: relative;
+      touch-action: none;
+    }
+
+    #gallery-image {
+      width: 100%;
+      height: auto;
+      display: block;
+      user-select: none;
+      -webkit-user-drag: none;
+      transition: opacity 0.25s ease;
+    }
+    #gallery-image.loading { opacity: 0.35; }
+
+    /* scan-line overlay */
+    .image-box::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,0.07) 3px,
+        rgba(0,0,0,0.07) 4px
+      );
+      pointer-events: none;
+    }
+
+    /* ── Status bar ── */
+    .status-bar { display: none; }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .status-dot.live { background: #4caf78; box-shadow: 0 0 6px #4caf78; }
+
+    /* ── Controls ── */
+    .controls {
+      margin-top: 22px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 10px 22px;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.18s ease;
+      user-select: none;
+    }
+    button:hover:not(:disabled) {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+    button:disabled {
+      opacity: 0.22;
+      cursor: not-allowed;
+    }
+    #btn-actual {
+      border-color: var(--accent2);
+      color: var(--accent2);
+    }
+    #btn-actual:hover:not(:disabled) {
+      background: var(--accent2);
+      color: #000;
+    }
+
+    /* ── Loading overlay ── */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 100;
+      transition: opacity 0.4s ease;
+    }
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-overlay p {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    /* ── Error ── */
+    #error-box {
+      display: none;
+      width: 100%;
+      max-width: 840px;
+      margin-top: 12px;
+      padding: 12px 16px;
+      border: 1px solid #c0392b;
+      border-radius: 3px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: #e74c3c;
+      background: rgba(192,57,43,0.08);
+    }
+  </style>
+</head>
+<body>
+
+<!-- loading -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p>načítání seznamu snímků…</p>
+</div>
+
+<header>
+  <h1>FVE<span>/</span>KLADNO</h1>
+  <div id="header-status"></div>
+  <div id="header-right">
+    <div id="date-display">—</div>
+  </div>
+</header>
+
+<div class="frame-wrapper">
+  <div class="corner-br"></div>
+  <div class="corner-tl"></div>
+  <div class="image-box" id="touch-zone">
+    <img id="gallery-image" src="" alt="Snímek FVE">
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-dot" id="status-dot"></div>
+  <span id="status-text">–</span>
+  <span id="index-label"></span>
+</div>
+
+<div class="controls">
+  <button id="btn-prev"   onclick="stiskStarsi()">← Starší</button>
+  <button id="btn-actual" onclick="zobrazAktualni()">● Aktuální</button>
+  <button id="btn-next"   onclick="stiskNovejsi()">Novější →</button>
+</div>
+
+<div id="error-box"></div>
+
+<script>
+  // ================================================================
+  // NASTAVENÍ – sem vlož URL svého Apps Scriptu po nasazení
+  // ================================================================
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz16YbahcvENiHVCVesvxhvuM_x0y8wsrLGo7O3EUdQCAvV-o303IJvq5yTqRy7LbNxQw/exec';
+  // ================================================================
+
+  let aktualniId  = null;
+  let archiv      = [];   // [{ datumText, id }, …] nejnovější → nejstarší
+  let aktualniIdx = -1;   // -1 = aktualni.jpg
+
+  const imgEl      = document.getElementById('gallery-image');
+  const dateEl     = document.getElementById('date-display');
+  const statusEl   = document.getElementById('status-text');
+  const statusDot  = document.getElementById('status-dot');
+  const indexLabel = document.getElementById('index-label');
+  const btnPrev    = document.getElementById('btn-prev');
+  const btnNext    = document.getElementById('btn-next');
+  const btnActual  = document.getElementById('btn-actual');
+  const overlay    = document.getElementById('loading-overlay');
+  const errorBox   = document.getElementById('error-box');
+
+  // ── Načtení dat ze Apps Scriptu ──────────────────────────────────
+  async function inicializuj() {
+    try {
+      const res  = await fetch(APPS_SCRIPT_URL);
+      const data = await res.json();
+      aktualniId = data.aktualniId;
+      archiv     = data.archiv || [];
+    } catch (e) {
+      zobrazChybu('Nepodařilo se načíst seznam snímků. Zkontroluj URL Apps Scriptu a jeho oprávnění.');
+    }
+    overlay.classList.add('hidden');
+    zobrazAktualni();
+  }
+
+  // ── Zobrazení snímků ─────────────────────────────────────────────
+  function zobrazAktualni() {
+    if (!aktualniId) { zobrazChybu('ID aktuální.jpg nebylo nalezeno v Drive složce.'); return; }
+    aktualniIdx = -1;
+    const ts    = Date.now();
+    nactiObrazek(`https://lh3.googleusercontent.com/d/${aktualniId}=w1920?t=${ts}`);
+    const dnes  = formatujDatum(new Date());
+    dateEl.textContent   = dnes;
+    const headerStatus = document.getElementById('header-status');
+    headerStatus.textContent = 'Aktuální snímek';
+    statusEl.textContent = 'Aktuální snímek';
+    statusDot.className  = 'status-dot live';
+    indexLabel.textContent = '';
+    aktualizujTlacitka();
+  }
+
+  function zobrazArchiv(idx) {
+    aktualniIdx = idx;
+    const s = archiv[idx];
+    nactiObrazek(`https://lh3.googleusercontent.com/d/${s.id}=w1920`);
+    // Reformat datumText "30. 05. 2026" -> "30.05.2026"
+    dateEl.textContent   = s.datumText.replace(/\. /g, '.');
+    const headerStatus = document.getElementById('header-status');
+    headerStatus.textContent = `Archiv (${idx + 1}/${archiv.length})`;
+    statusDot.className  = 'status-dot';
+    indexLabel.textContent = `${idx + 1} / ${archiv.length}`;
+    aktualizujTlacitka();
+  }
+
+  function nactiObrazek(url) {
+    imgEl.classList.add('loading');
+    imgEl.onload  = () => imgEl.classList.remove('loading');
+    imgEl.onerror = () => imgEl.classList.remove('loading');
+    imgEl.src = url;
+  }
+
+  // ── Tlačítka ─────────────────────────────────────────────────────
+  function aktualizujTlacitka() {
+    if (aktualniIdx === -1) {
+      btnActual.disabled = true;
+      btnNext.disabled   = true;
+      btnPrev.disabled   = archiv.length === 0;
+    } else {
+      btnActual.disabled = false;
+      btnNext.disabled   = false;
+      btnPrev.disabled   = aktualniIdx === archiv.length - 1;
+    }
+  }
+
+  function stiskStarsi() {
+    if (btnPrev.disabled) return;
+    if (aktualniIdx === -1) zobrazArchiv(0);
+    else zobrazArchiv(aktualniIdx + 1);
+  }
+
+  function stiskNovejsi() {
+    if (btnNext.disabled) return;
+    if (aktualniIdx === 0) zobrazAktualni();
+    else zobrazArchiv(aktualniIdx - 1);
+  }
+
+  // ── Klávesnice ───────────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft')                          stiskStarsi();
+    else if (e.key === 'ArrowRight')                    stiskNovejsi();
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      if (!btnActual.disabled) zobrazAktualni();
+    }
+  });
+
+  // ── Dotykové ovládání ────────────────────────────────────────────
+  let tx = 0, ty = 0;
+  const tz = document.getElementById('touch-zone');
+  tz.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+  tz.addEventListener('touchend',   e => {
+    if (!e.changedTouches.length) return;
+    const dx = tx - e.changedTouches[0].clientX;
+    const dy = ty - e.changedTouches[0].clientY;
+    if (Math.abs(dx) > 40 && Math.abs(dy) < 60) {
+      if (dx > 0) stiskStarsi(); else stiskNovejsi();
+    }
+  }, { passive: true });
+
+  // ── Pomocné ──────────────────────────────────────────────────────
+  function formatujDatum(d) {
+    return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+  }
+
+  function zobrazChybu(msg) {
+    errorBox.style.display = 'block';
+    errorBox.textContent   = '⚠ ' + msg;
+  }
+
+  // ── Start ────────────────────────────────────────────────────────
+  inicializuj();
+</script>
+</body>
+</html>
