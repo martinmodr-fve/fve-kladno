@@ -222,6 +222,14 @@
       color: #e74c3c;
       background: rgba(192,57,43,0.08);
     }
+
+    /* ── Úzké displeje: menší záhlaví, aby se vešel popisek "Předpověď - pozítří" ── */
+    @media (max-width: 480px) {
+      header { gap: 6px; }
+      header h1 { font-size: 1.05rem; }
+      #header-status { font-size: 0.8rem; }
+      #date-display { font-size: 0.9rem; }
+    }
   </style>
 </head>
 <body>
@@ -271,10 +279,11 @@
 
   let aktualniId  = null;
   let zitraId     = null;
+  let pozitriId   = null;
   let archiv      = [];   // [{ datumText, id }, …] nejnovější → nejstarší
-  let aktualniIdx = -1;   // -2 = zitra.jpg, -1 = aktualni.jpg, 0… = archiv
+  let aktualniIdx = -1;   // -3 = pozitri.jpg, -2 = zitra.jpg, -1 = aktualni.jpg, 0… = archiv
 
-  // Pořadí od nejnovějšího: zitra → aktualni → archiv[0] → archiv[1] → …
+  // Pořadí od nejnovějšího: pozitri → zitra → aktualni → archiv[0] → archiv[1] → …
 
   const imgEl      = document.getElementById('gallery-image');
   const dateEl     = document.getElementById('date-display');
@@ -294,6 +303,7 @@
       const data = await res.json();
       aktualniId = data.aktualniId;
       zitraId    = data.zitraId || null;
+      pozitriId  = data.pozitriId || null;
       archiv     = data.archiv || [];
     } catch (e) {
       zobrazChybu('Nepodařilo se načíst seznam snímků. Zkontroluj URL Apps Scriptu a jeho oprávnění.');
@@ -327,8 +337,24 @@
     zitra.setDate(zitra.getDate() + 1);
     dateEl.textContent   = formatujDatum(zitra);
     const headerStatus = document.getElementById('header-status');
-    headerStatus.textContent = 'Předpověď';
+    headerStatus.textContent = 'Předpověď - zítra';
     statusEl.textContent = 'Předpověď na zítřek';
+    statusDot.className  = 'status-dot';
+    indexLabel.textContent = '';
+    aktualizujTlacitka();
+  }
+
+  function zobrazPozitri() {
+    if (!pozitriId) return;
+    aktualniIdx = -3;
+    const ts    = Date.now();
+    nactiObrazek(`https://lh3.googleusercontent.com/d/${pozitriId}=w1920?t=${ts}`);
+    const pozitri = new Date();
+    pozitri.setDate(pozitri.getDate() + 2);
+    dateEl.textContent   = formatujDatum(pozitri);
+    const headerStatus = document.getElementById('header-status');
+    headerStatus.textContent = 'Předpověď - pozítří';
+    statusEl.textContent = 'Předpověď na pozítří';
     statusDot.className  = 'status-dot';
     indexLabel.textContent = '';
     aktualizujTlacitka();
@@ -356,9 +382,13 @@
 
   // ── Tlačítka ─────────────────────────────────────────────────────
   function aktualizujTlacitka() {
-    if (aktualniIdx === -2) {            // zítra
+    if (aktualniIdx === -3) {            // pozítří
       btnActual.disabled = false;
       btnNext.disabled   = true;
+      btnPrev.disabled   = false;
+    } else if (aktualniIdx === -2) {     // zítra
+      btnActual.disabled = false;
+      btnNext.disabled   = !pozitriId;
       btnPrev.disabled   = false;
     } else if (aktualniIdx === -1) {     // aktuální
       btnActual.disabled = true;
@@ -373,14 +403,16 @@
 
   function stiskStarsi() {
     if (btnPrev.disabled) return;
-    if (aktualniIdx === -2) zobrazAktualni();
+    if (aktualniIdx === -3) zobrazZitra();
+    else if (aktualniIdx === -2) zobrazAktualni();
     else if (aktualniIdx === -1) zobrazArchiv(0);
     else zobrazArchiv(aktualniIdx + 1);
   }
 
   function stiskNovejsi() {
     if (btnNext.disabled) return;
-    if (aktualniIdx === -1) zobrazZitra();
+    if (aktualniIdx === -2) zobrazPozitri();
+    else if (aktualniIdx === -1) zobrazZitra();
     else if (aktualniIdx === 0) zobrazAktualni();
     else zobrazArchiv(aktualniIdx - 1);
   }
