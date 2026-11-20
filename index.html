@@ -40,9 +40,9 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 3px;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 10px;
+      padding-bottom: 6px;
     }
     header h1 {
       font-family: var(--mono);
@@ -281,6 +281,9 @@
   let zitraId     = null;
   let pozitriId   = null;
   let archiv      = [];   // [{ datumText, id }, …] nejnovější → nejstarší
+  let posledniSeznam    = 0;  // kdy naposledy proběhlo načtení seznamu (ID souborů)
+  let posledniPokus     = 0;  // kdy se naposledy zkoušelo načíst seznam (i neúspěšně)
+  let posledniObnoveni  = 0;  // kdy se naposledy načetl obrázek
   let aktualniIdx = -1;   // -3 = pozitri.jpg, -2 = zitra.jpg, -1 = aktualni.jpg, 0… = archiv
 
   // Pořadí od nejnovějšího: pozitri → zitra → aktualni → archiv[0] → archiv[1] → …
@@ -297,7 +300,8 @@
   const errorBox   = document.getElementById('error-box');
 
   // ── Načtení dat ze Apps Scriptu ──────────────────────────────────
-  async function inicializuj() {
+  async function nactiSeznam() {
+    posledniPokus = Date.now();
     try {
       const res  = await fetch(APPS_SCRIPT_URL);
       const data = await res.json();
@@ -305,19 +309,27 @@
       zitraId    = data.zitraId || null;
       pozitriId  = data.pozitriId || null;
       archiv     = data.archiv || [];
+      posledniSeznam = Date.now();
+      errorBox.style.display = 'none';
+      return true;
     } catch (e) {
-      zobrazChybu('Nepodařilo se načíst seznam snímků. Zkontroluj URL Apps Scriptu a jeho oprávnění.');
+      return false;
     }
+  }
+
+  async function inicializuj() {
+    const ok = await nactiSeznam();
+    if (!ok) zobrazChybu('Nepodařilo se načíst seznam snímků. Zkontroluj URL Apps Scriptu a jeho oprávnění.');
     overlay.classList.add('hidden');
     zobrazAktualni();
   }
 
   // ── Zobrazení snímků ─────────────────────────────────────────────
-  function zobrazAktualni() {
+  function zobrazAktualni(tiche = false) {
     if (!aktualniId) { zobrazChybu('ID aktuální.jpg nebylo nalezeno v Drive složce.'); return; }
     aktualniIdx = -1;
     const ts    = Date.now();
-    nactiObrazek(`https://lh3.googleusercontent.com/d/${aktualniId}=w1920?t=${ts}`);
+    nactiObrazek(`https://lh3.googleusercontent.com/d/${aktualniId}=w1920?t=${ts}`, tiche);
     const dnes  = formatujDatum(new Date());
     dateEl.textContent   = dnes;
     const headerStatus = document.getElementById('header-status');
@@ -328,11 +340,11 @@
     aktualizujTlacitka();
   }
 
-  function zobrazZitra() {
+  function zobrazZitra(tiche = false) {
     if (!zitraId) return;
     aktualniIdx = -2;
     const ts    = Date.now();
-    nactiObrazek(`https://lh3.googleusercontent.com/d/${zitraId}=w1920?t=${ts}`);
+    nactiObrazek(`https://lh3.googleusercontent.com/d/${zitraId}=w1920?t=${ts}`, tiche);
     const zitra = new Date();
     zitra.setDate(zitra.getDate() + 1);
     dateEl.textContent   = formatujDatum(zitra);
@@ -344,11 +356,11 @@
     aktualizujTlacitka();
   }
 
-  function zobrazPozitri() {
+  function zobrazPozitri(tiche = false) {
     if (!pozitriId) return;
     aktualniIdx = -3;
     const ts    = Date.now();
-    nactiObrazek(`https://lh3.googleusercontent.com/d/${pozitriId}=w1920?t=${ts}`);
+    nactiObrazek(`https://lh3.googleusercontent.com/d/${pozitriId}=w1920?t=${ts}`, tiche);
     const pozitri = new Date();
     pozitri.setDate(pozitri.getDate() + 2);
     dateEl.textContent   = formatujDatum(pozitri);
@@ -373,7 +385,17 @@
     aktualizujTlacitka();
   }
 
-  function nactiObrazek(url) {
+  function nactiObrazek(url, tiche = false) {
+    posledniObnoveni = Date.now();
+    if (tiche) {
+      // Automatické obnovení: nový snímek se nejdřív načte do paměti a teprve potom
+      // se vymění, takže obraz neprobliká a při chybě zůstane starý snímek.
+      const pozice = aktualniIdx;
+      const pre = new Image();
+      pre.onload = () => { if (aktualniIdx === pozice) imgEl.src = url; };
+      pre.src = url;
+      return;
+    }
     imgEl.classList.add('loading');
     imgEl.onload  = () => imgEl.classList.remove('loading');
     imgEl.onerror = () => imgEl.classList.remove('loading');
@@ -427,16 +449,19 @@
   });
 
   // ── Dotykové ovládání ────────────────────────────────────────────
-  let tx = 0, ty = 0;
+  let tx = 0, ty = 0, viceprstu = false;
   const tz = document.getElementById('touch-zone');
   tz.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1) return;
+    if (e.touches.length !== 1) { viceprstu = true; return; }   // gesto dvěma prsty = zoom, ne přepnutí
+    viceprstu = false;
     tx = e.touches[0].clientX;
     ty = e.touches[0].clientY;
   }, { passive: true });
 
   tz.addEventListener('touchend', e => {
     if (e.touches.length > 0 || !e.changedTouches.length) return;
+    if (viceprstu) return;                                       // konec zoomování nepřepíná snímek
+    if (window.visualViewport && window.visualViewport.scale > 1.05) return;  // přiblíženo: tah posouvá obraz
     const dx = tx - e.changedTouches[0].clientX;
     const dy = ty - e.changedTouches[0].clientY;
     if (Math.abs(dx) > 40 && Math.abs(dy) < 60) {
@@ -453,6 +478,40 @@
     errorBox.style.display = 'block';
     errorBox.textContent   = '⚠ ' + msg;
   }
+
+  // ── Automatické obnovování ───────────────────────────────────────
+  // Aktuální snímek se obnovuje každou minutu, předpovědi (zítra, pozítří) každých
+  // 10 minut. Archiv se neobnovuje. Seznam souborů se z Apps Scriptu načítá znovu
+  // nejvýše jednou za 10 minut (pokud se změní ID souboru, stránka to zjistí sama).
+  // Na skryté záložce se nic nestahuje, po návratu se obnoví hned.
+  const OBNOVA_AKTUALNI_MS = 60 * 1000;
+  const OBNOVA_PREDPOVED_MS = 10 * 60 * 1000;
+  const OBNOVA_SEZNAM_MS = 10 * 60 * 1000;
+  let obnovaBezi = false;
+
+  async function automatickaObnova() {
+    if (document.hidden || obnovaBezi || aktualniIdx >= 0) return;
+    const limit = aktualniIdx === -1 ? OBNOVA_AKTUALNI_MS : OBNOVA_PREDPOVED_MS;
+    const stari = Date.now() - posledniObnoveni;
+    const seznamStary = (!aktualniId || (Date.now() - posledniSeznam > OBNOVA_SEZNAM_MS))
+                        && (Date.now() - posledniPokus > 60 * 1000);
+    if (stari < limit && !seznamStary) return;
+    obnovaBezi = true;
+    try {
+      if (seznamStary) await nactiSeznam();
+      if (aktualniIdx >= 0) return;               // mezitím přešel do archivu
+      if (stari >= limit) {
+        if (aktualniIdx === -1) zobrazAktualni(true);
+        else if (aktualniIdx === -2) zobrazZitra(true);
+        else if (aktualniIdx === -3) zobrazPozitri(true);
+      }
+    } finally {
+      obnovaBezi = false;
+    }
+  }
+
+  setInterval(automatickaObnova, 15 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) automatickaObnova(); });
 
   // ── Start ────────────────────────────────────────────────────────
   inicializuj();
